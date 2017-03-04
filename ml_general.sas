@@ -7,18 +7,22 @@ options nosource;
 %put ***                        gp_stability_index                                        ***;
 %put ***                        gp_var_split                                              ***;
 %put ***                        gp_univariate_c                                           ***;
+%put ***                        gp_cluster_corr                                           ***;
+%put ***                        gp_cluster_size                                           ***;
+%put ***                        gp_cluster_struct                                         ***;
+%put ***                        gp_cluster_add_vars                                       ***;        
 %put ***                                                                                  ***;
 %put ***     use macro gp_help(macro_name) for more info.                                 ***;
 %put ****************************************************************************************;
 
 *********************************************************************************************;
-***                                    Public Macros                                      ***;    
+***                                    Public Macros                                      ***;
 *********************************************************************************************;
 %macro gp_info_value(
                     data_table  = /* Source table name                                      */,
                     out_table   = /* Output table name                                      */,
                     n_threshold = /* Nlevel threshold to determine a variable if continuous */,
-                    perf_var    = /* Performance variable such as ODEFIND                   */,
+                    perf_var    = /* Performance variable such AS ODEFIND                   */,
                     date_var    = /* If given, also calculate IV over time by date_var      */,
                     graph_out   = /* Graph output if date_var is given. 1 for on and        */
                                   /* missing or 0 for off                                   */,
@@ -29,12 +33,13 @@ options nosource;
                                   /* proc transreg.                                         */
 
                         /* Purpose: calculates IV value based on WOE method                 */
-                        /* Example: gp_info_value(data_table  = sample,                    */
+                        /* Example: gp_info_value(data_table  = sample,                     */
                         /*                         out_table   = example,                   */
                         /*                         n_threshold = 20                         */
                         /*                         perf_var    = ODEFIND                    */
-                        /*                          )                                       */
-                    );
+                        /*          )                                                       */
+);
+
     %local func_num;
 
     * Initialization;
@@ -68,9 +73,9 @@ options nosource;
     proc freq data = &func_num._sample nlevels; run;
 
     proc sql noprint;
-        select tablevar into: discrete_vars separated by ' '
-            from &func_num._var_levels
-            where nlevels <= &n_threshold
+        SELECT tablevar INTO: discrete_vars SEPARATED BY ' '
+            FROM &func_num._var_levels
+            WHERE nlevels <= &n_threshold
         ;
     quit;
 
@@ -97,26 +102,26 @@ options nosource;
     run;
 
     proc sql noprint;
-        create table &func_num._var_check as
-            select a.var_name,
+        CREATE TABLE &func_num._var_check AS
+            SELECT a.var_name,
                    a.nlevels,
                    b.type
-            from &func_num._var_levels as a
-            full join
-                 &func_num._var_type as b
-            on a.var_name = b.variable
+            FROM &func_num._var_levels AS a
+            FULL JOIN
+                 &func_num._var_type AS b
+            ON a.var_name = b.variable
         ;
 
-        select var_name into: discrete_vars separated by ' '
-            from &func_num._var_check
-            where (nlevels <= &n_threshold or lowcase(type) = 'char')
-                  and lowcase(var_name) not in ("&perf_var", "&date_var")
+        SELECT var_name INTO: discrete_vars SEPARATED BY ' '
+            FROM &func_num._var_check
+            WHERE (nlevels <= &n_threshold OR lowcase(type) = 'char')
+                  AND lowcase(var_name) NOT IN ("&perf_var", "&date_var")
         ;
 
-        select var_name into: continuous_vars separated by ' '
-            from &func_num._var_check
-            where nlevels > &n_threshold and lowcase(type) = 'num'
-                  and lowcase(var_name) not in ("&perf_var", "&date_var")
+        SELECT var_name INTO: continuous_vars SEPARATED BY ' '
+            FROM &func_num._var_check
+            WHERE nlevels > &n_threshold AND lowcase(type) = 'num'
+                  AND lowcase(var_name) NOT IN ("&perf_var", "&date_var")
         ;
     quit;
 
@@ -159,9 +164,9 @@ options nosource;
         ods select all;
 
         proc sql noprint;
-            select variable into: transvars separated by ' '
-                from &func_num._tvars
-                where variable like 'T%'
+            SELECT variable INTO: transvars SEPARATED BY ' '
+                FROM &func_num._tvars
+                WHERE variable LIKE 'T%'
             ;
         quit;
     %end;
@@ -177,8 +182,8 @@ options nosource;
 
     * Calculate base_ratio that is used to calculate WOE for each var;
     proc sql noprint exec;
-        select sum(&perf_var = 0) / sum(&perf_var = 1) into: base_ratio
-            from &func_num._perf_data
+        SELECT sum(&perf_var = 0) / sum(&perf_var = 1) INTO: base_ratio
+            FROM &func_num._perf_data
         ;
 
         * For discrete vars;
@@ -187,19 +192,19 @@ options nosource;
             %let var = %scan(&discrete_vars, &i);
             %put Running WOE and IV calculation for var: &var;
 
-            create table &func_num._woe_d_&i as
-                select distinct
+            CREATE TABLE &func_num._woe_d_&i as
+                SELECT DISTINCT
                        case when (sum(&perf_var = 0) = 0) then -&special_woe
                             when (sum(&perf_var = 1) = 0) then +&special_woe
                             else log(sum(&perf_var = 0) / sum(&perf_var = 1)) - log(&base_ratio) 
-                       end as WOE,
-                       sum(&perf_var = 0) / &total_good as dist_good,
-                       sum(&perf_var = 1) / &total_bad as dist_bad,
-                       calculated dist_good - calculated dist_bad as dist_diff,
-                       calculated dist_diff * calculated WOE as IV,
+                       end AS WOE,
+                       sum(&perf_var = 0) / &total_good AS dist_good,
+                       sum(&perf_var = 1) / &total_bad AS dist_bad,
+                       calculated dist_good - calculated dist_bad AS dist_diff,
+                       calculated dist_diff * calculated WOE AS IV,
                        &var,
-                       "&var" as var_name length = 36
-                from &func_num._disc_data
+                       "&var" AS var_name length = 36
+                FROM &func_num._disc_data
                 group by &var
             ;
             %let i = %eval(&i + 1);
@@ -212,19 +217,19 @@ options nosource;
             %let var = %scan(&continuous_vars, &i);
             %put Running WOE and IV calculation for var: &var;
 
-            create table &func_num._woe_c_&i as
-                select distinct
+            CREATE TABLE &func_num._woe_c_&i as
+                SELECT DISTINCT
                        case when (sum(&perf_var = 0) = 0) then -&special_woe
                             when (sum(&perf_var = 1) = 0) then +&special_woe
                             else log(sum(&perf_var = 0) / sum(&perf_var = 1)) - log(&base_ratio) 
-                       end as WOE,
-                       sum(&perf_var = 0) / &total_good as dist_good,
-                       sum(&perf_var = 1) / &total_bad as dist_bad,
-                       calculated dist_good - calculated dist_bad as dist_diff,
-                       calculated dist_diff * calculated WOE as IV,
+                       end AS WOE,
+                       sum(&perf_var = 0) / &total_good AS dist_good,
+                       sum(&perf_var = 1) / &total_bad AS dist_bad,
+                       calculated dist_good - calculated dist_bad AS dist_diff,
+                       calculated dist_diff * calculated WOE AS IV,
                        T&var,
-                       "&var" as var_name length = 36
-                from &func_num._cont_data_T
+                       "&var" AS var_name length = 36
+                FROM &func_num._cont_data_T
                 group by T&var
             ;
             %let i = %eval(&i + 1);
@@ -249,7 +254,7 @@ options nosource;
         output out = &func_num._iv(drop = _:) sum =;
     run;
 
-    * If date_var is provided, then calculate IV by date_var as well;
+    * If date_var is provided, then calculate IV by date_var AS well;
     %if %length(&date_var) %then %do;
         proc datasets lib = work nolist;
             delete &func_num._woe_:;
@@ -271,14 +276,14 @@ options nosource;
         %end;
 
         proc sql noprint exec;
-            create table &func_num._count_by_date as
-                select sum(&perf_var = 0) as total_good,
-                       sum(&perf_var = 1) as total_bad,
-                       (calculated total_good + 1e-3) / (calculated total_bad + 1e-3) as base_ratio,
+            CREATE TABLE &func_num._count_by_date AS
+                SELECT sum(&perf_var = 0) AS total_good,
+                       sum(&perf_var = 1) AS total_bad,
+                       (calculated total_good + 1e-3) / (calculated total_bad + 1e-3) AS base_ratio,
                        &date_var
-                from &func_num._perf_data
-                group by &date_var
-                order by &date_var
+                FROM &func_num._perf_data
+                GROUP BY &date_var
+                ORDER BY &date_var
             ;
 
             * For discrete vars;
@@ -289,24 +294,24 @@ options nosource;
                 %let var = %scan(&discrete_vars, &i);
                 %put Running WOE and IV calculation for var: &var;
 
-                create table &func_num._woe_d_&i as
-                    select distinct
-                           case when (sum(&perf_var = 0) = 0) then -&special_woe
-                                when (sum(&perf_var = 1) = 0) then +&special_woe
-                                else log(sum(&perf_var = 0) / sum(&perf_var = 1)) - log(base_ratio) 
-                           end as WOE,
-                           sum(&perf_var = 0) / total_good as dist_good,
-                           sum(&perf_var = 1) / total_bad as dist_bad,
-                           calculated dist_good - calculated dist_bad as dist_diff,
-                           calculated dist_diff * calculated WOE as IV,
+                CREATE TABLE &func_num._woe_d_&i AS
+                    SELECT DISTINCT
+                           CASE WHEN (sum(&perf_var = 0) = 0) THEN -&special_woe
+                                WHEN (sum(&perf_var = 1) = 0) THEN +&special_woe
+                                ELSE log(sum(&perf_var = 0) / sum(&perf_var = 1)) - log(base_ratio) 
+                           END AS WOE,
+                           sum(&perf_var = 0) / total_good AS dist_good,
+                           sum(&perf_var = 1) / total_bad AS dist_bad,
+                           CALCULATED dist_good - CALCULATED dist_bad AS dist_diff,
+                           CALCULATED dist_diff * CALCULATED WOE AS IV,
                            a.&date_var,
                            &var,
-                           "&var" as var_name length = 36
-                    from &func_num._disc_data as a,
-                         &func_num._count_by_date as b
-                    where a.&date_var = b.&date_var
-                    group by a.&date_var, &var
-                    order by a.&date_var, &var
+                           "&var" AS var_name length = 36
+                    FROM &func_num._disc_data AS a,
+                         &func_num._count_by_date AS b
+                    WHERE a.&date_var = b.&date_var
+                    GROUP BY a.&date_var, &var
+                    ORDER BY a.&date_var, &var
                 ;
                 %let i = %eval(&i + 1);
             %end;
@@ -320,24 +325,24 @@ options nosource;
                 %let var = %scan(&continuous_vars, &i);
                 %put Running WOE and IV calculation for var: &var;
 
-                create table &func_num._woe_c_&i as
-                    select distinct
-                           case when (sum(&perf_var = 0) = 0) then -&special_woe
-                                when (sum(&perf_var = 1) = 0) then +&special_woe
-                                else log(sum(&perf_var = 0) / sum(&perf_var = 1)) - log(base_ratio) 
-                           end as WOE,
-                           sum(&perf_var = 0) / total_good as dist_good,
-                           sum(&perf_var = 1) / total_bad as dist_bad,
-                           calculated dist_good - calculated dist_bad as dist_diff,
-                           calculated dist_diff * calculated WOE as IV,
+                CREATE TABLE &func_num._woe_c_&i as
+                    SELECT DISTINCT
+                           CASE WHEN (sum(&perf_var = 0) = 0) THEN -&special_woe
+                                WHEN (sum(&perf_var = 1) = 0) THEN +&special_woe
+                                ELSE log(sum(&perf_var = 0) / sum(&perf_var = 1)) - log(base_ratio) 
+                           END AS WOE,
+                           sum(&perf_var = 0) / total_good AS dist_good,
+                           sum(&perf_var = 1) / total_bad AS dist_bad,
+                           CALCULATED dist_good - CALCULATED dist_bad AS dist_diff,
+                           CALCULATED dist_diff * CALCULATED WOE AS IV,
                            a.&date_var,
                            T&var,
-                           "&var" as var_name length = 36
-                    from &func_num._cont_data_T as a,
-                         &func_num._count_by_date as b
-                    where a.&date_var = b.&date_var
-                    group by a.&date_var, T&var
-                    order by a.&date_var, T&var
+                           "&var" AS var_name length = 36
+                    FROM &func_num._cont_data_T AS a,
+                         &func_num._count_by_date AS b
+                    WHERE a.&date_var = b.&date_var
+                    GROUP BY a.&date_var, T&var
+                    ORDER BY a.&date_var, T&var
                 ;
                 %let i = %eval(&i + 1);
             %end;
@@ -369,8 +374,8 @@ options nosource;
             ods graphics on/height = 240px width = 640px;
 
             proc sql noprint;
-                select distinct var_name into: plot_vars separated by ' '
-                    from &func_num._iv
+                SELECT DISTINCT var_name INTO: plot_vars SEPARATED BY ' '
+                    FROM &func_num._iv
                 ;
             quit;
 
@@ -430,7 +435,6 @@ options nosource;
     ods graphics on/height = 480px width = 640px; /* Default size */
 %mend gp_info_value;
 
-
 %macro gp_stability_chart(
                     data_table = /* Source table name                                       */,
                     var_list   = /* Variable list for stability chart. SPACE separated      */, 
@@ -441,8 +445,9 @@ options nosource;
                            /* Example: gp_stability_chart(data_table = sample,              */
                            /*                             var_list   = 20                   */
                            /*                             date_var   = QTR                  */
-                           /*                             )                                 */
-                          );
+                           /*          )                                                    */
+);
+
     %local func_num;
 
     * Prefix table names for better clarification;
@@ -461,10 +466,10 @@ options nosource;
 
     * Create a copy of external data/view - the PC way;
     proc sql noprint;
-        create table &func_num._data as
-            select *
-            from &data_table
-            order by &date_var
+        CREATE TABLE &func_num._data AS
+            SELECT *
+            FROM &data_table
+            ORDER BY &date_var
         ;
     quit;
 
@@ -497,9 +502,6 @@ options nosource;
     title;
 %mend gp_stability_chart;
 
-
-
-
 %macro gp_stability_index(
                     data_table = /* Source table name                                       */,
                     out_table  = /* Output table name. Ignored if missing                   */,
@@ -519,8 +521,9 @@ options nosource;
                            /* Example: gp_stability_index(data_table = sample,              */
                            /*                             var_list   = 20                   */
                            /*                             date_var   = QTR                  */
-                           /*                             )                                 */
-                          );
+                           /*          )                                                    */
+);
+
     %local func_num;
 
     * Initialization;
@@ -552,10 +555,10 @@ options nosource;
 
     * Create a copy of external data/view - the PC way;
     proc sql noprint;
-        create table &func_num._data as
-            select *
-            from &data_table
-            order by &date_var
+        CREATE TABLE &func_num._data AS
+            SELECT *
+            FROM &data_table
+            ORDER BY &date_var
         ;
     quit;
 
@@ -669,8 +672,14 @@ options nosource;
     
             %if &data_type ne char %then %do;
                 data &func_num._freq_cross_raw 
-                     &func_num._freq_cross_base(rename = (pct_row = pct_row_exp percent = pct_exp));
-                    set &func_num._freq_cross_raw(rename = (&var = _drop1 &norm_var = _drop2));
+                     &func_num._freq_cross_base(rename = (
+                                                    pct_row = pct_row_exp 
+                                                    percent = pct_exp
+                                               ));
+                    set &func_num._freq_cross_raw(rename = (
+                                                    &var = _drop1
+                                                    &norm_var = _drop2
+                                                 ));
                     by &date_var;
                     length &var &norm_var $36;
                     &var = put(_drop1, &var._.);
@@ -687,7 +696,10 @@ options nosource;
             %end;
             %else %do;
                 data &func_num._freq_cross_raw 
-                     &func_num._freq_cross_base(rename = (pct_row = pct_row_exp percent = pct_exp));
+                     &func_num._freq_cross_base(rename = (
+                                                    pct_row = pct_row_exp
+                                                    percent = pct_exp
+                                               ));
                     set &func_num._freq_cross_raw;
                     by &date_var;
 
@@ -830,8 +842,14 @@ options nosource;
                 run;
 
                 data &func_num._si_total;
-                    set &func_num._si(rename = (stab_idx = stab_idx_raw stab_idx_diff = stab_idx_raw_diff));
-                    set &func_num._si_norm(rename = (stab_idx = stab_idx_norm stab_idx_diff = stab_idx_norm_diff));
+                    set &func_num._si(rename = (
+                                        stab_idx = stab_idx_raw
+                                        stab_idx_diff = stab_idx_raw_diff
+                                     ));
+                    set &func_num._si_norm(rename = (
+                                            stab_idx = stab_idx_norm
+                                            stab_idx_diff = stab_idx_norm_diff
+                                          ));
                 run;
 
                 ods graphics on/height = 400px width = 800px;
@@ -885,8 +903,9 @@ options nosource;
                            /* Example: gp_var_split(out_table = my_blk,                     */
                            /*                       var_list  = var_1 var_2 var_3,          */
                            /*                       blk_size  = 300                         */
-                           /*                       )                                       */
-                    );
+                           /*          )                                                    */
+);
+
     %local func_num;
 
     * Prefix table names for better clarification;
@@ -932,7 +951,7 @@ options nosource;
 %macro gp_univariate_c(
                     data_table  = /* Source table name                                      */,
                     out_table   = /* Output table name. Ignored if missing                  */,
-                    perf_var    = /* Performance variable such as ODEFIND                   */,
+                    perf_var    = /* Performance variable such AS ODEFIND                   */,
                     delete_flag = /* 1 or 0(miss). Delete all temporary data after run      */,
                     trans_data  = /* Dataset containing monotonically transformed data by   */
                                   /* proc transreg.                                         */
@@ -942,8 +961,9 @@ options nosource;
                         /* Example: gp_univariate_c(data_table = sample,                    */
                         /*                          out_table  = example,                   */
                         /*                          perf_var   = ODEFIND                    */
-                        /*                          )                                       */
-                       );
+                        /*          )                                                       */
+);
+
     %local func_num;
 
     * Prefix table names for better clarification;
@@ -971,14 +991,14 @@ options nosource;
     ods select all;
 
     proc sql noprint;
-        select variable into: num_vars separated by ' '
-            from &func_num._var_type
-            where lowcase(variable) ne "&perf_var" and lowcase(type) = 'num'
+        SELECT variable INTO: num_vars SEPARATED BY ' '
+            FROM &func_num._var_type
+            WHERElowcase(variable) ne "&perf_var" and lowcase(type) = 'num'
         ;
 
-        select variable into: char_vars separated by ' '
-            from &func_num._var_type
-            where lowcase(variable) ne "&perf_var" and lowcase(type) = 'char'
+        SELECT variable INTO: char_vars SEPARATED BY ' '
+            FROM &func_num._var_type
+            WHERElowcase(variable) ne "&perf_var" and lowcase(type) = 'char'
         ;
     quit;
 
@@ -1099,7 +1119,7 @@ options nosource;
 %macro gp_fast_transreg(
                     data_table  = /* Source table name                                      */,
                     out_table   = /* Output table name. Ignored if missing                  */,
-                    perf_var    = /* Performance variable such as ODEFIND                   */,
+                    perf_var    = /* Performance variable such AS ODEFIND                   */,
                     var_list    = /* List of interested numeric variables. SPACE separated  */, 
                     delete_flag = /* 1 or 0(miss). Delete all temporary data after run      */,
                     blk_size    = 100
@@ -1111,8 +1131,9 @@ options nosource;
                         /*                           out_table   = example,                 */
                         /*                           perf_var    = ODEFIND                  */
                         /*                           var_list    = A B C D                  */
-                        /*                           )                                      */
-                       );
+                        /*          )                                                       */
+);
+
     %local func_num;
 
     * Prefix table names for better clarification;
@@ -1134,13 +1155,14 @@ options nosource;
         keep &var_list &perf_var;
     run;
 
+    * In memory loading;
     sasfile &func_num._data open;
 
     %let i = 1;
     proc sql noprint;
-        select var_name into: curr_vars separated by ' '
-            from &func_num._var_blk
-            where block = &i
+        SELECT var_name INTO: curr_vars SEPARATED BY ' '
+            FROM &func_num._var_blk
+            WHERE block = &i
         ;
     quit;
 
@@ -1153,9 +1175,9 @@ options nosource;
         %let i = %eval(&i + 1);
         %let curr_vars =;
         proc sql noprint;
-            select var_name into: curr_vars separated by ' '
-                from &func_num._var_blk
-                where block = &i
+            SELECT var_name INTO: curr_vars SEPARATED BY ' '
+                FROM &func_num._var_blk
+                WHERE block = &i
             ;
         quit;
     %end;
@@ -1176,6 +1198,501 @@ options nosource;
 
 %mend gp_fast_transreg;
 
+%macro gp_cluster_corr(
+                    data_table  = /* Source table name, should be the OUTSTATS FROM Varclus */,
+                    out_table   = /* Output table name. Ignored if missing                  */,
+                    agg_funcs   = mean
+                                  /* List of aggregating function(s). Default is mean       */,
+                    delete_flag = /* 1 or 0(miss). Delete all temporary data after run      */
+
+                        /* Purpose: calculate statistics of clusters correlation by each    */
+                        /*          step of decomposition                                   */
+                        /* Example: gp_cluster_corr(data_table = sample,                    */
+                        /*                          out_table  = example,                   */
+                        /*                          agg_func   = p75                        */
+                        /*          )                                                       */
+);
+
+    %local func_num;
+
+    * Prefix table names for better clarification;
+    %let func_num = gp_07;
+
+    proc datasets lib = work nolist;
+        delete &func_num.:;
+    quit;
+
+    ods select Position;
+    ods output Position = &func_num._position;
+    proc contents data = &data_table varnum; run;
+    ods select all;
+
+    * Supposedly, the first 3 variables are _NCL_ _TYPE_ _NAME_;
+    data _null_;
+        set &func_num._position end = _end;
+        
+        if Num = 4 then do;
+            call symput('start_var', Variable);
+        end;
+
+        if _end then do;
+            call symput('end_var', Variable);
+            call symput('end_num', Num);
+        end;
+    run;
+
+    %let dim = %eval(&end_num - 3);
+    
+    data &func_num._ccorr;
+        set &data_table;
+        where _TYPE_ = 'CCORR';
+    run;
+
+    data &func_num._ccorr;
+        length clus_num 4;
+        set &func_num._ccorr;
+        clus_num = input(substr(_NAME_, 5), best4.);
+
+        array old_clus{*} &start_var -- &end_var;
+        array new_clus{*} clus_1 - clus_&dim;
+
+        do i = 1 to dim(old_clus);
+            if i < clus_num then do;
+                new_clus{i} = old_clus{i};
+            end;
+        end;
+
+        drop WOE_: i _NAME_ _TYPE_;
+        rename _NCL_ = num_clusters;
+    run;
+
+    proc transpose data = &func_num._ccorr out = &func_num._ccorr_t;
+        by num_clusters clus_num;
+    run;
+
+    data &func_num._ccorr_t;
+        set &func_num._ccorr_t;
+        COL1 = abs(COL1);
+        where COL1 ne .;
+    run;
+
+    proc means data = &func_num._ccorr_t nway noprint;
+        class num_clusters;
+        var COL1;
+        output out = &func_num._out(drop = _:) 
+            %let i = 1;
+            %do %while (%length(%scan(&agg_funcs, &i)));
+                %let agg_func = %scan(&agg_funcs, &i);
+                &agg_func = &agg_func._cluster_corr
+                %let i = %eval(&i + 1);
+            %end;
+            ;
+    run;
+
+    %if %length(&out_table) %then %do;
+        data &out_table;
+            set &func_num._out;
+        run;
+    %end;
+
+    %if &delete_flag = 1 %then %do;
+        proc datasets lib = work nolist;
+            delete &func_num.:;
+        quit;
+    %end;
+
+%mend gp_cluster_corr;
+
+%macro gp_cluster_size(
+                    data_table  = /* Source table name, should be the OUTSTATS FROM Varclus */,
+                    out_table   = /* Output table of KDE. Ignored if missing                */,
+                    log_flag    = /* 1 or 0(miss). If log transform the size of clusters    */,
+                    plot_flag   = /* 1 or 0(miss). If plot the histogram and density        */,
+                    delete_flag = /* 1 or 0(miss). Delete all temporary data after run      */,
+                    plot_clus_list =
+                                  /* A list of clusters represented by the number to be     */
+                                  /* plotted. If not given, a plot of 21 subplots based on  */
+                                  /* log interval will be generated                         */,
+                    plot_hist_xmax = 20
+                                  /* Max value of xaxis for the histogram plot              */,
+                    plot_num_cols = 7
+                                  /* Number of columns in the plots                         */,
+                    plot_width    = 6in
+                                  /* Plot width passed to ods graphics width option         */,
+                    plot_height   = 8in
+                                  /* Plot height passed to ods graphics height option       */
+
+                        /* Purpose: calculate cluster size distribution by number of        */
+                        /*          clusters. Histogram and KDE plots are optional          */
+                        /* Example: gp_cluster_size(data_table = sample,                    */
+                        /*                          out_table  = kde_out,                   */
+                        /*                          plot_flag  = 1,                         */
+                        /*                          plot_clus_list = 1 3 5 8 10 11 125      */
+                        /*          )                                                       */
+);
+
+    %local func_num;
+
+    * Prefix table names for better clarification;
+    %let func_num = gp_08;
+
+    * Initialization of variables;
+    %if &log_flag = 1 %then %let var_name = log_num;
+    %else %let var_name = COL1;
+
+    %if %length(&plot_clus_list) %then %do;
+        %let plot_flag = 1;
+    %end;
+        
+    proc datasets lib = work nolist;
+        delete &func_num.:;
+    quit;
+
+    * Obtain member information;
+    data &func_num._members;
+        set &data_table;
+        where _TYPE_ = 'MEMBERS';
+        rename _NCL_ = num_clusters;
+        drop _NAME_ _TYPE_; 
+    run;
+
+    proc transpose data = &func_num._members out = &func_num._members_t(drop = _:);
+        by num_clusters;
+    run;
+
+    data &func_num._members_t;
+        set &func_num._members_t end = _end;
+        log_num = log(COL1);
+        where COL1 ne .;
+
+        if _end then call symput('num_clus', num_clusters);
+        drop _:;
+    run;
+
+    %if &log_flag = 1 %then %let gridu = 6;
+    %else %let gridu = &num_clus; /* Just an approximation of ymax */
+
+    * Density estimation;
+    proc kde data = &func_num._members_t;
+        by num_clusters;
+        univar &var_name (gridl=1 gridu=&gridu) / ngrid = 21 plots = none
+        out = &func_num._den noprint;
+        where num_clusters > 1; /* Avoid error of insufficient data */
+    run;
+    
+    %if %length(&out_table) %then %do;
+        data &out_table;
+            set &func_num._den;
+        run;
+    %end;
+
+    * Plot based on specification;
+    %if &plot_flag = 1 %then %do;
+        data &func_num._den_plot;
+            set &func_num._den;
+            by num_clusters;
+
+            low = 0;
+
+            * Clean density data;
+            if density < 1e-3 then density = 0;
+
+            %if %length(&plot_clus_list) %then %do;
+                where num_clusters in (&plot_clus_list);
+            %end;
+            %else %do;
+                * Make a 3 x 7 plot;
+                retain i is_plot 0;
+                interval = log(&num_clus) / 22;
+                if first.num_clusters then is_plot = 0;
+                if log(num_clusters) >= i * interval then do;
+                    i = i + 1;
+                    is_plot = 1;
+                end; 
+            
+                drop i is_plot interval;
+                if is_plot;
+            %end;
+        run;
+
+    ods graphics / reset width = &plot_width height = &plot_height;
+    title 'Histogram Plot of Number of Members for Each Cluster by Total Cluster Number';
+
+    proc sgpanel data = &func_num._den_plot nocycleattrs;
+        panelby num_clusters / layout = panel onepanel novarname noborder
+                               colheaderpos = bottom columns = &plot_num_cols;
+        highlow y = value high = count low = low / lineattrs = (thickness = 4) 
+                                                   transparency = 0.5;
+        rowaxis label = 'Log(Num of Members in Cluster)' grid;
+        colaxis display = (nolabel) valueattrs = (size = 6) max = &plot_hist_xmax;
+    run;
+    
+    /* 
+        There is a bug where if one has ods graphcis / reset at the beginning and before every
+        following plot, all plots will just be the last plot.
+    */
+
+    title 'Density Plot of Number of Members for Each Cluster by Total Cluster Number';
+
+    proc sgpanel data = &func_num._den_plot nocycleattrs;
+        panelby num_clusters / layout = panel onepanel novarname noborder
+                               colheaderpos = bottom columns = &plot_num_cols;
+        highlow y = value high = density low = low / lineattrs = (thickness = 4) 
+                                                     transparency = 0.5;
+        rowaxis label = 'Log(Num of Members in Cluster)' grid;
+        colaxis display = (nolabel) valueattrs = (size = 6);
+    run;
+
+    title '';
+    ods graphics / reset;    
+
+    %end;
+
+    %if &delete_flag = 1 %then %do;
+        proc datasets lib = work nolist;
+            delete &func_num.:;
+        quit;
+    %end;
+
+%mend gp_cluster_size;
+
+%macro gp_cluster_struct(
+                    data_table  = /* Source table name, should be the OUTSTATS FROM Varclus */,
+                    out_table   = /* Output table of KDE. Ignored if missing                */,
+                    select_clus = /* Number representing which cluster is selected          */,
+                    delete_flag = /* 1 or 0(miss). Delete all temporary data after run      */
+
+                        /* Purpose: Show the cluster structure and RSquared Ratios          */
+
+);
+
+    %local func_num;
+
+    * Prefix table names for better clarification;
+    %let func_num = gp_09;
+
+    proc datasets lib = work nolist;
+        delete &func_num.:;
+    quit;
+
+    * Pad the number with 0 so it could be sorted correctly;
+    data &func_num._structure;
+        set &data_table;
+
+        if _NAME_ = 'Clus1' then _NAME_ = 'Clus01';
+        if _NAME_ = 'Clus2' then _NAME_ = 'Clus02';
+        if _NAME_ = 'Clus3' then _NAME_ = 'Clus03';
+        if _NAME_ = 'Clus4' then _NAME_ = 'Clus04';
+        if _NAME_ = 'Clus5' then _NAME_ = 'Clus05';
+        if _NAME_ = 'Clus6' then _NAME_ = 'Clus06';
+        if _NAME_ = 'Clus7' then _NAME_ = 'Clus07';
+        if _NAME_ = 'Clus8' then _NAME_ = 'Clus08';
+        if _NAME_ = 'Clus9' then _NAME_ = 'Clus09';
+
+        rename _NAME_ = cluster;
+
+        where _NCL_ = &select_clus and _TYPE_ = 'STRUCTUR';
+    run;
+
+    proc transpose data = &func_num._structure out = &func_num._structure_t;
+        by cluster;
+        var WOE_:;
+    run;
+    
+    * Calculate rsquared;
+    data &func_num._structure_t;
+        set &func_num._structure_t;
+        COL1 = COL1 ** 2;
+        rename _NAME_ = var_name
+               COL1 = rsquared
+        ;
+        drop _LABEL_;
+    run;
+
+    proc sort data = &func_num._structure_t;
+        by var_name rsquared;
+    run;
+
+    * Output rsquare ratios;
+    data &func_num._out;
+        set &func_num._structure_t;
+        by var_name rsquared;
+
+        retain rsquared_next clus_next;
+        
+        * Initialize to missing;
+        if first.var_name then rsquared_next = .;
+        
+        if last.var_name then do;
+            rsquared_ratio = (1 - rsquared) / (1 - rsquared_next);
+            output;
+        end;
+
+        rsquared_next = rsquared;
+        clus_next = cluster;
+    run;
+
+    proc sort data = &func_num._out;
+        by cluster rsquared_ratio;
+    run;
+
+    %if %length(&out_table) %then %do;
+        data &out_table;
+            set &func_num._out;
+        run;
+    %end;
+
+    %if &delete_flag = 1 %then %do;
+        proc datasets lib = work nolist;
+            delete &func_num.:;
+        quit;
+    %end;
+
+%mend gp_cluster_struct;
+
+%macro gp_cluster_add_vars(
+                    data_table  = /* Data source table                                      */,
+                    score_table = /* OUTSTATS FROM Varclus                                  */,
+                    out_table   = /* Output table of KDE. Ignored if missing                */,
+                    select_clus = /* Number representing which cluster is selected          */,
+                    select_vars = /* Selected variables to add to the existing structure. If*/
+                                  /* missing, all variables in data_table will be added     */,
+                    delete_flag = /* 1 or 0(miss). Delete all temporary data after run      */
+
+                        /* Purpose: Show the cluster structure and RSquared Ratios          */
+
+);
+
+    %local func_num;
+
+    * Prefix table names for better clarification;
+    %let func_num = gp_10;
+
+    proc datasets lib = work nolist;
+        delete &func_num.:;
+    quit;
+
+    * Re-construct the cluster components;
+    %_gp_clus_score(&func_num, &data_table, &score_table, &func_num._cmp, &select_clus)
+
+    data &func_num._cmp;
+        set &func_num._cmp;
+        set &data_table.(keep = &select_vars);
+    run;
+
+    proc corr data = &func_num._cmp outp = &func_num._corr noprint;
+        var woe:;
+        with clus:;
+    run;
+
+    data &func_num._corr;
+        set &func_num._corr;
+
+        if _NAME_ = 'Clus1' then _NAME_ = 'Clus01';
+        if _NAME_ = 'Clus2' then _NAME_ = 'Clus02';
+        if _NAME_ = 'Clus3' then _NAME_ = 'Clus03';
+        if _NAME_ = 'Clus4' then _NAME_ = 'Clus04';
+        if _NAME_ = 'Clus5' then _NAME_ = 'Clus05';
+        if _NAME_ = 'Clus6' then _NAME_ = 'Clus06';
+        if _NAME_ = 'Clus7' then _NAME_ = 'Clus07';
+        if _NAME_ = 'Clus8' then _NAME_ = 'Clus08';
+        if _NAME_ = 'Clus9' then _NAME_ = 'Clus09';
+
+        rename _NAME_ = cluster;
+        where _NAME_ is not missing;
+        drop _TYPE_;
+    run;
+
+    proc transpose data = &func_num._corr out = &func_num._corr_t;
+        by cluster;
+    run;
+
+    data &func_num._corr_t;
+        set &func_num._corr_t;
+
+        COL1 = COL1 ** 2;
+
+        rename _NAME_ = var_name
+               COL1 = rsquared;
+        drop _LABEL_;
+    run;
+
+    proc sort data = &func_num._corr_t;
+        by var_name rsquared;
+    run;
+
+    * Output rsquare ratios;
+    data &func_num._out;
+        set &func_num._corr_t;
+        by var_name rsquared;
+
+        retain rsquared_next clus_next;
+        
+        * Initialize to missing;
+        if first.var_name then rsquared_next = .;
+        
+        if last.var_name then do;
+            rsquared_ratio = (1 - rsquared) / (1 - rsquared_next);
+            output;
+        end;
+
+        rsquared_next = rsquared;
+        clus_next = cluster;
+    run;
+
+    proc sort data = &func_num._out;
+        by cluster rsquared_ratio;
+    run;
+
+    %if %length(&out_table) %then %do;
+        data &out_table;
+            set &func_num._out;
+        run;
+    %end;
+
+    %if &delete_flag = 1 %then %do;
+        proc datasets lib = work nolist;
+            delete &func_num.:;
+        quit;
+    %end;
+
+%mend gp_cluster_add_vars;
+
+%macro gp_template(
+                    data_table  = /* Source table name                                      */,
+                    out_table   = /* Output table name. Ignored if missing                  */,
+                    delete_flag = /* 1 or 0(miss). Delete all temporary data after run      */
+
+                        /* Purpose: a dummy macro AS a coding style reference               */
+
+);
+
+    %local func_num;
+
+    * Prefix table names for better clarification;
+    %let func_num = gp_07;
+
+    proc datasets lib = work nolist;
+        delete &func_num.:;
+    quit;
+
+    /*
+        Some code here
+    */
+
+    %if %length(&out_table) %then %do;
+        data &out_table;
+            set &func_num._out;
+        run;
+    %end;
+
+    %if &delete_flag = 1 %then %do;
+        proc datasets lib = work nolist;
+            delete &func_num.:;
+        quit;
+    %end;
+
+%mend gp_template;
 
 *********************************************************************************************;
 ***                                       Help Macro                                      ***;    
@@ -1204,7 +1721,7 @@ options nosource;
         %put                        out_table   = example,;         
         %put                        n_threshold = 20;     
         %put                        perf_var    = ODEFIND; 
-        %put                        );                    
+        %put          );                    
     %end;
     %else %if %lowcase(%trim(&m_name)) = gp_stability_chart %then %do;
         %put macro: gp_stability_chart;
@@ -1221,7 +1738,7 @@ options nosource;
         %put          gp_stability_chart(data_table = sample,;   
         %put                             var_list   = OFFR_DT FICO_SCR_NB,;         
         %put                             date_var   = QTR;        
-        %put                             );                       
+        %put          );                       
     %end;
     %else %if %lowcase(%trim(&m_name)) = gp_stability_index %then %do;
         %put macro: gp_stability_index;
@@ -1243,11 +1760,11 @@ options nosource;
         %put        data_type  = : Data type of var_list. Char or Num (missing); 
         %put ;
         %put example:;
-        %put         gp_stability_index(data_table = sample,;   
+        %put          gp_stability_index(data_table = sample,;   
         %put                             var_list   = OFFR_DT FICO_SCR_NB,;         
         %put                             date_var   = QTR,;
         %put                             norm_var   = FICO_SCR_NB; 
-        %put                             );                       
+        %put          );                       
     %end;
     %else %if %lowcase(%trim(&m_name)) = gp_var_split %then %do;
         %put macro: gp_var_split;
@@ -1264,12 +1781,12 @@ options nosource;
         %put          gp_var_split(out_table = my_blk,;                 
         %put                       var_list  = var_1 var_2 var_3,;               
         %put                       blk_size  = 300;                     
-        %put                       );                                   
+        %put          );                                   
     %end;
     %else %if %lowcase(%trim(&m_name)) = gp_univariate_c %then %do;
         %put macro: gp_univariate_c;
         %put ;
-        %put purpose: scalculate concordance value for each variable based on;
+        %put purpose: calculate concordance value for each variable based on;
         %put          sunivariate logistic regression;                        
         %put ;
         %put arguments:;
@@ -1282,15 +1799,86 @@ options nosource;
         %put          gp_univariate_c(data_table = sample,;       
         %put                          out_table  = example,;               
         %put                          perf_var   = ODEFIND;       
-        %put                          );                           
+        %put          );                           
+    %end;
+    %else %if %lowcase(%trim(&m_name)) = gp_fast_transreg %then %do;
+        %put macro: gp_fast_transreg;
+        %put ;
+        %put purpose: accelarate transreg speed by splitting calculationg;
+        %put          into smaller pieces;                                
+        %put ;
+        %put arguments:;
+        %put        data_table  = : Source table name;                                        
+        %put        out_table   = : Output table name. Ignored if missing;                
+        %put        perf_var    = : Performance variable such as ODEFIND;                    
+        %put        var_list    = : List of interested numeric variables. SPACE separated;
+        %put        delete_flag = : 1 or 0(miss). Delete all temporary data after run;    
+        %put        blk_size    = : block size for each subset of variables;
+        %put ;                             
+        %put example:;
+        %put          gp_fast_transreg(data_table = sample,;        
+        %put                           out_table  = example,;               
+        %put                           perf_var   = ODEFIND;       
+        %put                           var_list   = A B C D; 
+        %put          );                     
+    %end;
+    %else %if %lowcase(%trim(&m_name)) = gp_cluster_corr %then %do;
+        %put macro: gp_cluster_corr;
+        %put ;
+        %put purpose: calculate cluster size distribution by number of; 
+        %put          clusters. Histogram and KDE plots are optional;   
+        %put ;
+        %put arguments:;
+        %put        data_table  = : Source table name, should be the OUTSTATS FROM Varclus;
+        %put        out_table   = : Output table name. Ignored if missing;   
+        %put        agg_funcs   = : List of aggregating functions. Default is mean;   
+        %put        delete_flag = : 1 or 0(miss). Delete all temporary data after run;
+        %put ;
+        %put example:;
+        %put          gp_cluster_corr(data_table = sample,;       
+        %put                          out_table  = example,;               
+        %put                          agg_funcs  = mean p50 p75 max min;           
+        %put          );                          
+    %end;
+    %else %if %lowcase(%trim(&m_name)) = gp_cluster_size %then %do;
+        %put macro: gp_cluster_size;
+        %put ;
+        %put purpose: calculate statistics of clusters correlation by each;
+        %put          step of decomposition;                               
+        %put ;
+        %put arguments:;
+        %put        data_table  = : Source table name, should be the OUTSTATS FROM Varclus;
+        %put        out_table   = : Output table of KDE. Ignored if missing;               
+        %put        log_flag    = : 1 or 0(miss). If log transform the size of clusters;   
+        %put        plot_flag   = : 1 or 0(miss). If plot the histogram and density;       
+        %put        delete_flag = : 1 or 0(miss). Delete all temporary data after run;     
+        %put        plot_clus_list = : A list of clusters represented by the number to be;
+        %put                           plotted. If not given, a plot of 21 subplots based on;
+        %put                           log interval will be generated;
+        %put        plot_hist_xmax = : Max value of xaxis for the histogram plot. Default 20;                
+        %put        plot_num_cols  = : Number of columns in the plots. Default 7;                       
+        %put        plot_width     = : Plot width passed to ods graphics width option.;
+        %put                           Default 6in;
+        %put        plot_height    = : Plot height passed to ods graphics height option.;
+        %put                           Default 8in;
+        %put ;
+        %put example:;
+        %put          gp_cluster_size(data_table = sample,;              
+        %put                          out_table  = kde_out,;               
+        %put                          plot_flag  = 1,;                               
+        %put                          plot_clus_list = 1 3 5 8 10 11 125;
+        %put          );
     %end;
     %else %do;
-        %put please type a valid macro name in the gp macro library;
+        %put please input a valid macro name;
         %put current macros in the ordw library:;
-        %put gp_discrete_var;
-        %put gp_continuous_var;
+        %put gp_info_value;
         %put gp_stability_chart;
         %put gp_stability_index;
+        %put gp_var_split;
+        %put gp_univariate_c;
+        %put gp_cluster_corr;
+        %put gp_cluster_size;
     %end;
 %put ****************************************************************************************;
 %mend gp_help;
@@ -1372,12 +1960,12 @@ options nosource;
     run;
 
     proc sql noprint;
-        select distinct clus into: clusters separated by ' '
-            from &clus_table
+        SELECT DISTINCT clus INTO: clusters SEPARATED BY ' '
+            FROM &clus_table
         ;
 
-        select distinct _var_name into: var_list separated by ' '
-            from &clus_table
+        SELECT DISTINCT _var_name INTO: var_list SEPARATED BY ' '
+            FROM &clus_table
         ;
 
     quit;
@@ -1393,9 +1981,9 @@ options nosource;
     %do %while(%length(%scan(&clusters, &i)));
         %let clus = %scan(&clusters, &i);
         proc sql noprint;
-            select _var_name into: clus_vars separated by ' '
-                from &clus_table
-                where clus = &clus
+            SELECT _var_name INTO: clus_vars SEPARATED BY ' '
+                FROM &clus_table
+                WHERE clus = &clus
             ;
         quit;
 
@@ -1443,5 +2031,20 @@ options nosource;
 
     sasfile _diag9_data close;
 %mend _gp_diag9;
+
+%macro _gp_clus_score(func_num, data_table, oustats_table, out_table, select_clus);
+data &func_num._score;
+    set &oustats_table;
+    where _NCL_ = &select_clus or _NCL_ = .;
+    drop _NCL_;
+run;
+
+proc score data = &data_table
+    score = &func_num._score
+    out = &out_table.(keep = clus:);
+run;
+
+
+%mend _gp_clus_score;
 
 options source;
