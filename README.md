@@ -27,7 +27,7 @@ use %gp_help(macro_name) for more info.
 
 ### screenshot of the result table
 ![alt text][corr]
-[corr]: https://github.ford.com/JZHAN162/sas-macro-lib/blob/master/examples/gp_cluster_corr.png 'Cluster Correlation'
+[corr]: https://github.com/jingmin1987/sas-macro-lib/blob/master/examples/gp_cluster_corr.png 'Cluster Correlation'
 
 ## gp_cluster_size
 ```sas
@@ -44,11 +44,11 @@ use %gp_help(macro_name) for more info.
 ```
 ### screenshot of histogram plot
 ![alt text][size_hist]
-[size_hist]: https://github.ford.com/JZHAN162/sas-macro-lib/blob/master/examples/gp_cluster_size_histogram.png 'Histogram Plot'
+[size_hist]: https://github.com/jingmin1987/sas-macro-lib/blob/master/examples/gp_cluster_size_histogram.png 'Histogram Plot'
 
 ### screenshot of histogram plot
 ![alt text][size_den]
-[size_den]: https://github.ford.com/JZHAN162/sas-macro-lib/blob/master/examples/gp_cluster_size_density.png 'Density Plot'
+[size_den]: https://github.com/jingmin1987/sas-macro-lib/blob/master/examples/gp_cluster_size_density.png 'Density Plot'
 =======
 Handy SAS macros created for variable selection
 
