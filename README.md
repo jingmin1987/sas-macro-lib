@@ -58,8 +58,3 @@ use %gp_help(macro_name) for more info.
 ### screenshot of histogram plot
 ![Density Plot](examples/gp_cluster_size_density.png)
 
-=======
-Handy SAS macros created for variable selection
-
-# Purpose
-This is part of my SAS library that I intended to showcase how a standardized SAS environment could look like. Each time when a new project is created, one should call %include "" to initialize the standard macro libraries similar to the ways in other general-purpose programming languages.
