@@ -1,5 +1,16 @@
 # sas-macro-lib
-A general purpose macr library for variable selection.
+This library contains some useful macros for performing information value related tasks in SAS, 
+including
+* Calculating information value
+* Calculating and plotting Population Stability Index (PSI) over time
+* Slicing dataset vertically (N by M to N by M<sub>1</sub>, N by M<sub>2</sub>, etc. where M = 
+M<sub>1</sub> + M<sub>2</sub> ...)
+* Calculating concordance on a univariate basis
+* Calculating cluster correlation distribution by progress of cluster decomposition based on VarClus
+* Calculating cluster size distribution by progress of cluster decomposition based on VarClus
+
+Moreover, I would hope this codebase can serve as a starting point for normalizing coding style 
+in SAS.
 
 # Usage
 macro library for: General purpose           
@@ -26,8 +37,7 @@ use %gp_help(macro_name) for more info.
 ```
 
 ### screenshot of the result table
-![alt text][corr]
-[corr]: https://github.com/jingmin1987/sas-macro-lib/blob/master/examples/gp_cluster_corr.png 'Cluster Correlation'
+![Cluster Correlation](examples/gp_cluster_corr.png)
 
 ## gp_cluster_size
 ```sas
@@ -43,12 +53,11 @@ use %gp_help(macro_name) for more info.
 )
 ```
 ### screenshot of histogram plot
-![alt text][size_hist]
-[size_hist]: https://github.com/jingmin1987/sas-macro-lib/blob/master/examples/gp_cluster_size_histogram.png 'Histogram Plot'
+![Histogram Plot](examples/gp_cluster_size_histogram.png)
 
 ### screenshot of histogram plot
-![alt text][size_den]
-[size_den]: https://github.com/jingmin1987/sas-macro-lib/blob/master/examples/gp_cluster_size_density.png 'Density Plot'
+![Density Plot](examples/gp_cluster_size_density.png)
+
 =======
 Handy SAS macros created for variable selection
 
